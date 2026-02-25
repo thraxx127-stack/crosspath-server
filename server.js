@@ -30,8 +30,7 @@ const express = require('express');
     var s2 = io.sockets.sockets.get(id2);
 
     if (!s1 || !s2) {
-      console.log('[MATCH] One socket gone during pairing - re-queuing
-  survivors');
+      console.log('[MATCH] One socket gone during pairing - re-queuing survivors');
       if (s1) { s1.data.status = 'queued'; queue.push(id1); }
       if (s2) { s2.data.status = 'queued'; queue.push(id2); }
       return;
