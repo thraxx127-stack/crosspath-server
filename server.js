@@ -1,25 +1,26 @@
-var express = require('express');                                             
+ var express = require('express');                                             
   var http = require('http');                                                   
   var Server = require('socket.io').Server;                                     
-  var path = require('path');            
+  var path = require('path');                                                   
+
+  var app = express();
+  var server = http.createServer(app);                                          
                                                                                 
-  var app = express();                                                          
-  var server = http.createServer(app);
+  var io = new Server(server, {                                                 
+    cors: { origin: '*', methods: ['GET', 'POST'], credentials: false },        
+    transports: ['websocket', 'polling']                                        
+  });                                                                           
+                                                                                
+  var PORT = process.env.PORT || 3001;                                          
+  var SESSION_MS = 3 * 60 * 1000;                                               
+                                                                                
+  var queue = [];                                                               
+  var sessions = new Map();                                                     
+  var reactionWindows = new Map();                                              
 
-  var io = new Server(server, {
-    cors: { origin: '*', methods: ['GET', 'POST'], credentials: false },
-    transports: ['websocket', 'polling']
-  });
-
-  var PORT = process.env.PORT || 3001;
-  var SESSION_MS = 3 * 60 * 1000;
-
-  var queue = [];
-  var sessions = new Map();
-
-  app.get('/health', function(req, res) {
-    res.json({ status: 'ok', queue: queue.length, sessions: sessions.size });
-  });
+  app.get('/health', function(req, res) {                                       
+    res.json({ status: 'ok', queue: queue.length, sessions: sessions.size });   
+  });                                                                           
 
   function createSession(id1, id2) {
     var s1 = io.sockets.sockets.get(id1);
@@ -93,6 +94,42 @@ var express = require('express');
 
     sessions.delete(roomId);
     console.log('[SESSION] ended ' + roomId + ' reason ' + reason);
+
+    if (reason !== 'timeout') { return; }
+
+    var rTimer = setTimeout(function() {
+      resolveReaction(roomId, 'cross');
+    }, 12000);
+    reactionWindows.set(roomId, {
+      sockets: users,
+      votes: {},
+      timer: rTimer
+    });
+    for (var j = 0; j < users.length; j++) {
+      var rs = io.sockets.sockets.get(users[j]);
+      if (rs) { rs.data.reactionRoom = roomId; }
+    }
+    console.log('[REACT] window opened for ' + roomId);
+  }
+
+  function resolveReaction(roomId, result) {
+    var rw = reactionWindows.get(roomId);
+    if (!rw) { return; }
+    clearTimeout(rw.timer);
+    reactionWindows.delete(roomId);
+    for (var i = 0; i < rw.sockets.length; i++) {
+      var s = io.sockets.sockets.get(rw.sockets[i]);
+      if (!s) { continue; }
+      s.data.reactionRoom = null;
+      var partnerIdx = i === 0 ? 1 : 0;
+      var partner = io.sockets.sockets.get(rw.sockets[partnerIdx]);
+      var pUid = partner ? (partner.data.uid || null) : null;
+      s.emit('reaction_result', {
+        result: result,
+        partnerUid: pUid
+      });
+    }
+    console.log('[REACT] resolved ' + roomId + ' result ' + result);
   }
 
   function tryMatch() {
@@ -168,6 +205,26 @@ var express = require('express');
       console.log('[QUEUE] left size ' + queue.length);
     });
 
+    socket.on('send_reaction', function(data) {
+      var reaction = data && data.reaction;
+      if (reaction !== 'flame' && reaction !== 'cross') { return; }
+      var roomId = socket.data.reactionRoom;
+      if (!roomId || !reactionWindows.has(roomId)) { return; }
+      var rw = reactionWindows.get(roomId);
+      rw.votes[socket.id] = reaction;
+      console.log('[REACT] ' + socket.id + ' voted ' + reaction);
+      var vKeys = Object.keys(rw.votes);
+      var hasCross = vKeys.some(function(k) { return rw.votes[k] === 'cross';
+  });
+      if (hasCross) {
+        resolveReaction(roomId, 'cross');
+        return;
+      }
+      if (vKeys.length === rw.sockets.length) {
+        resolveReaction(roomId, 'mutual_flame');
+      }
+    });
+
     socket.on('send_message', function(data) {
       if (!data || !data.message || !data.message.trim()) { return; }
       if (socket.data.roomId !== data.roomId) { return; }
@@ -189,6 +246,10 @@ var express = require('express');
       var roomId = socket.data.roomId;
       if (roomId && sessions.has(roomId)) {
         endSession(roomId, 'partner_disconnected');
+      }
+      var reactionRoom = socket.data.reactionRoom;
+      if (reactionRoom && reactionWindows.has(reactionRoom)) {
+        resolveReaction(reactionRoom, 'cross');
       }
     });
   });
