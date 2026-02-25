@@ -1,14 +1,14 @@
- var express = require('express');                                             
-  var http = require('http');                                                 
+  var express = require('express');                                             
+  var http = require('http');                                                   
   var Server = require('socket.io').Server;                                     
   var path = require('path');                                                   
-
+                                                                                
   var app = express();
   var server = http.createServer(app);                                          
                                                                                 
   var io = new Server(server, {                                                 
-    cors: { origin: '*', methods: ['GET', 'POST'], credentials: false },        
-    transports: ['websocket', 'polling']                                        
+    cors: { origin: '*', methods: ['GET', 'POST'], credentials: false },
+    transports: ['websocket', 'polling']
   });
 
   var PORT = process.env.PORT || 3001;
@@ -49,8 +49,18 @@
     sessions.set(roomId, { users: [id1, id2], timer: timer, startTime: startTime
    });
 
-    io.to(roomId).emit('matched', { roomId: roomId, startTime: startTime,
-  duration: SESSION_MS });
+    s1.emit('matched', {
+      roomId: roomId,
+      startTime: startTime,
+      duration: SESSION_MS,
+      partnerUid: s2.data.uid || null
+    });
+    s2.emit('matched', {
+      roomId: roomId,
+      startTime: startTime,
+      duration: SESSION_MS,
+      partnerUid: s1.data.uid || null
+    });
 
     console.log('[MATCH] paired ' + id1 + ' and ' + id2);
     console.log('[SESSION] started room ' + roomId);
@@ -102,11 +112,13 @@
     socket.data.roomId = null;
     console.log('[CONNECT] ' + socket.id);
 
-    socket.on('join_queue', function() {
+    socket.on('join_queue', function(data) {
       if (socket.data.status !== 'idle') {
         console.log('[QUEUE] ignored - status ' + socket.data.status);
         return;
       }
+      var uid = (data && typeof data.uid === 'string') ? data.uid : null;
+      socket.data.uid = uid ? uid.slice(0, 20) : null;
       socket.data.status = 'queued';
       queue.push(socket.id);
       console.log('[QUEUE] joined size ' + queue.length);
