@@ -1,12 +1,12 @@
-  var express = require('express');                                             
+var express = require('express');                                             
   var http = require('http');                                                   
   var Server = require('socket.io').Server;                                     
-  var path = require('path');                                                   
+  var path = require('path');            
                                                                                 
-  var app = express();
-  var server = http.createServer(app);                                          
-                                                                                
-  var io = new Server(server, {                                                 
+  var app = express();                                                          
+  var server = http.createServer(app);
+
+  var io = new Server(server, {
     cors: { origin: '*', methods: ['GET', 'POST'], credentials: false },
     transports: ['websocket', 'polling']
   });
@@ -44,10 +44,17 @@
     s2.data.status = 'in_session';
     s2.data.roomId = roomId;
 
+    var endTime = startTime + SESSION_MS;
+    s1.data.sparksLeft = 3;
+    s2.data.sparksLeft = 3;
     var timer = setTimeout(function() { endSession(roomId, 'timeout'); },
   SESSION_MS);
-    sessions.set(roomId, { users: [id1, id2], timer: timer, startTime: startTime
-   });
+    sessions.set(roomId, {
+      users: [id1, id2],
+      timer: timer,
+      startTime: startTime,
+      endTime: endTime
+    });
 
     s1.emit('matched', {
       roomId: roomId,
@@ -132,6 +139,27 @@
         endSession(roomId, 'partner_disconnected');
       }
       socket.data.status = 'idle';
+    });
+
+    socket.on('send_spark', function() {
+      var roomId = socket.data.roomId;
+      if (!roomId || !sessions.has(roomId)) { return; }
+      if (!socket.data.sparksLeft || socket.data.sparksLeft <= 0) { return; }
+      var session = sessions.get(roomId);
+      socket.data.sparksLeft = socket.data.sparksLeft - 1;
+      session.endTime = session.endTime + 30000;
+      clearTimeout(session.timer);
+      var remaining = session.endTime - Date.now();
+      session.timer = setTimeout(function() {
+        endSession(roomId, 'timeout');
+      }, remaining);
+      io.to(roomId).emit('spark_applied', {
+        senderId: socket.id,
+        newEndTime: session.endTime,
+        senderSparksLeft: socket.data.sparksLeft
+      });
+      console.log('[SPARK] ' + socket.id + ' sparks left ' +
+  socket.data.sparksLeft);
     });
 
     socket.on('leave_queue', function() {
