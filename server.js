@@ -1,4 +1,4 @@
-var express = require('express');                                             
+ var express = require('express');                                             
   var http = require('http');                                                   
   var Server = require('socket.io').Server;                                     
   var path = require('path');                                                   
@@ -273,10 +273,4 @@ var express = require('express');
         resolveReaction(reactionRoom, 'cross');
       }
     });
-  });
-
-  app.use(express.static(path.join(__dirname)));
-
-  server.listen(PORT, function() {
-    console.log('[SERVER] running on port ' + PORT);
   });
