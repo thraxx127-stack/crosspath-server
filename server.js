@@ -1,26 +1,26 @@
  var express = require('express');                                             
-  var http = require('http');                                                   
+  var http = require('http');                               
   var Server = require('socket.io').Server;                                     
   var path = require('path');                                                   
+                                                                                
+  var app = express();                                                          
+  var server = http.createServer(app);                      
 
-  var app = express();
-  var server = http.createServer(app);                                          
-                                                                                
-  var io = new Server(server, {                                                 
-    cors: { origin: '*', methods: ['GET', 'POST'], credentials: false },        
-    transports: ['websocket', 'polling']                                        
-  });                                                                           
-                                                                                
-  var PORT = process.env.PORT || 3001;                                          
-  var SESSION_MS = 3 * 60 * 1000;                                               
-                                                                                
-  var queue = [];                                                               
-  var sessions = new Map();                                                     
-  var reactionWindows = new Map();                                              
+  var io = new Server(server, {
+    cors: { origin: '*', methods: ['GET', 'POST'], credentials: false },
+    transports: ['websocket', 'polling']
+  });
 
-  app.get('/health', function(req, res) {                                       
-    res.json({ status: 'ok', queue: queue.length, sessions: sessions.size });   
-  });                                                                           
+  var PORT = process.env.PORT || 3001;
+  var SESSION_MS = 3 * 60 * 1000;
+
+  var queue = [];
+  var sessions = new Map();
+  var reactionWindows = new Map();
+
+  app.get('/health', function(req, res) {
+    res.json({ status: 'ok', queue: queue.length, sessions: sessions.size });
+  });
 
   function createSession(id1, id2) {
     var s1 = io.sockets.sockets.get(id1);
@@ -252,10 +252,4 @@
         resolveReaction(reactionRoom, 'cross');
       }
     });
-  });
-
-  app.use(express.static(path.join(__dirname)));
-
-  server.listen(PORT, function() {
-    console.log('[SERVER] running on port ' + PORT);
   });
