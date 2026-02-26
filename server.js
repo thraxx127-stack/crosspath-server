@@ -1,10 +1,10 @@
  var express = require('express');                                             
-  var http = require('http');                                                   
+  var http = require('http');                               
   var Server = require('socket.io').Server;                                     
   var path = require('path');                                                   
                                                                                 
-  var app = express();
-  var server = http.createServer(app);
+  var app = express();                                                          
+  var server = http.createServer(app);                                          
 
   var io = new Server(server, {
     cors: {
@@ -540,10 +540,4 @@
         pendingFlameRequests.delete(frToDelete[fr]);
       }
     });
-  });
-
-  app.use(express.static(path.join(__dirname)));
-
-  server.listen(PORT, function() {
-    console.log('[SERVER] running on port ' + PORT);
   });
