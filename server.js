@@ -1,10 +1,10 @@
-var express = require('express');                                             
-  var http = require('http');                                                   
+ var express = require('express');                                             
+  var http = require('http');                               
   var Server = require('socket.io').Server;                                     
-  var path = require('path');                                                 
+  var path = require('path');                                                   
                                                                                 
   var app = express();                                                          
-  var server = http.createServer(app);
+  var server = http.createServer(app);                      
 
   var io = new Server(server, {
     cors: {
